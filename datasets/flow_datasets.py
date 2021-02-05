@@ -1,3 +1,4 @@
+import os
 import imageio
 import numpy as np
 import random
@@ -69,15 +70,15 @@ class SintelRaw(ImgSeqDataset):
                                         co_transform=co_transform)
 
     def collect_samples(self):
-        scene_list = self.root.dirs()
+        scene_list = self.root.dirs()  # got all the dirs
         samples = []
         for scene in scene_list:
-            img_list = scene.files('*.png')
+            img_list = scene.files('*.png')  # got all the images in single dir
             img_list.sort()
 
             for st in range(0, len(img_list) - self.n_frames + 1):
-                seq = img_list[st:st + self.n_frames]
-                sample = {'imgs': [self.root.relpathto(file) for file in seq]}
+                seq = img_list[st:st + self.n_frames]  # got the consequent frames
+                sample = {'imgs': [self.root.relpathto(file) for file in seq]}  # {'imgs': [Path('14/00955.png'), Path('14/00956.png')]}
                 samples.append(sample)
         return samples
 
@@ -93,7 +94,7 @@ class Sintel(ImgSeqDataset):
         self.subsplit = subsplit
         self.training_scene = ['alley_1', 'ambush_4', 'ambush_6', 'ambush_7', 'bamboo_2',
                                'bandage_2', 'cave_2', 'market_2', 'market_5', 'shaman_2',
-                               'sleeping_2', 'temple_3']  # Unofficial train-val split
+                               'sleeping_2', 'temple_3']  # Unofficial train-val split, totally 12 sets
 
         root = Path(root) / split
         super(Sintel, self).__init__(root, n_frames, input_transform=transform,
@@ -109,8 +110,8 @@ class Sintel(ImgSeqDataset):
         samples = []
         for flow_map in sorted((self.root / flow_dir).glob('*/*.flo')):
             info = flow_map.splitall()
-            scene, filename = info[-2:]
-            fid = int(filename[-8:-4])
+            scene, filename = info[-2:]  # scene: alley_1  filename: frame_0001.flo
+            fid = int(filename[-8:-4])  # fid: 1
             if self.split == 'training' and self.subsplit != 'trainval':
                 if self.subsplit == 'train' and scene not in self.training_scene:
                     continue
@@ -118,7 +119,7 @@ class Sintel(ImgSeqDataset):
                     continue
 
             s = {'imgs': [img_dir / scene / 'frame_{:04d}.png'.format(fid + i) for i in
-                          range(self.n_frames)]}
+                          range(self.n_frames)]}  # {'imgs': [Path('/home/hulk/Workspace/nick/ARFlow-master/Data/flow_dataset/MPI_Sintel/training/clean/alley_1/frame_0001.png'), Path('/home/hulk/Workspace/nick/ARFlow-master/Data/flow_dataset/MPI_Sintel/training/clean/alley_1/frame_0002.png')]}
             try:
                 assert all([p.isfile() for p in s['imgs']])
 
@@ -129,6 +130,7 @@ class Sintel(ImgSeqDataset):
                     elif self.n_frames == 2:
                         # for img1 img2, flow_12 will be evaluated
                         s['flow'] = flow_dir / scene / 'frame_{:04d}.flo'.format(fid)
+                        ## /home/hulk/Workspace/nick/ARFlow-master/Data/flow_dataset/MPI_Sintel/training/flow/temple_3/frame_0049.flo
                     else:
                         raise NotImplementedError(
                             'n_frames {} with flow or mask'.format(self.n_frames))
@@ -268,4 +270,55 @@ class KITTIFlow(ImgSeqDataset):
                 assert (self.root / img0).isfile()
                 s.update({'img0': img0})
             samples.append(s)
+        return samples
+
+
+class Symmetry(ImgSeqDataset):
+
+    def __init__(self, root, n_frames=2, split=None,
+                 subsplit='trainval', with_flow=True, ap_transform=None,
+                 transform=None, target_transform=None, co_transform=None):
+
+        self.with_flow = with_flow
+        # self.ap_transform = ap_transform
+
+        self.split = split
+        self.subsplit = subsplit
+
+        super(Symmetry, self).__init__(root, n_frames, input_transform=transform,
+                                       target_transform=target_transform,
+                                       co_transform=co_transform, ap_transform=ap_transform)
+
+    def collect_samples(self):
+
+        symm_list = self.root
+        samples = []
+
+        for img in os.listdir(os.path.join(symm_list, 'left')):
+
+            # seq1 = Path(os.path.join('left', img))
+            # seq2 = Path(os.path.join('right', img))
+            list = [os.path.join('left', img), os.path.join('right', img)]
+            sample = {'imgs': [Path(p) for p in list]}
+            # sample = {'imgs': [seq1]}
+            # sample['imgs'].append(seq2)
+
+            if self.with_flow:
+
+                    if self.n_frames == 2:
+
+                        flow_vx, flow_vy = img.split('.')[0] + '_vx' + '.bin', img.split('.')[0] + '_vy' + '.bin'
+                        flow_dir_vx = Path(os.path.join('flow', flow_vx))
+                        # flow_dir_vy = Path(os.path.join('flow', flow_vy))
+
+                        sample.update({'flow': flow_dir_vx})
+
+                    else:
+                        raise NotImplementedError(
+                            'n_frames {} with flow or mask'.format(self.n_frames))
+
+                    # if self.with_flow:
+                    #     assert sample['flow'].isfile()
+            samples.append(sample)
+
         return samples
